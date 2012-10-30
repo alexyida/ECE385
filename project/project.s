@@ -1,8 +1,12 @@
-.equ ADDR_JP2PORT, 0x10000070
-.equ ADDR_JP2PORT_DIR, 0x00000000
+.equ ADDR_JP2PORT, 		0x10000070
+.equ ADDR_JP2PORT_IE, 	0x10000078
+.equ ADDR_JP2PORT_EDGE, 0x1000007C
+.equ ADDR_JP2PORT_DIR, 	0x00000000
+.equ IRQ_JP2PA, 		0x00001000
 
-.equ ADDR_7SEG1, 0x10000020
-.equ ADDR_7SEG2, 0x10000030
+.equ ADDR_7SEG1, 		0x10000020
+.equ ADDR_7SEG2, 		0x10000030
+.equ ADDR_PS2,			0x10000100
 
 .equ NUMBER0, 0x3F
 .equ NUMBER1, 0x06
@@ -21,19 +25,54 @@
 .equ NUMBERE, 0x79
 .equ NUMBERF, 0x71
 
+.text
+
 .global _start
 
 _start:
-	movia  r8, ADDR_JP2PORT
+	movia 	r8, ADDR_JP2PORT_IE
+	movia 	r9, 0xf
+	stwio	r9, 0(r8)
+	
+	movia	r8, IRQ_JP2PA
+	wrctl	ctl3, r8
+	
+	movia 	r8,1
+	wrctl 	ctl0,r8   /* Enable global Interrupts on Nios2 */
 
-	movia  r9, 0x00000000        /* set direction to all output */
-	stwio  r9, 4(r8)
+	movia  	r9, 0x00000000        /* set direction to all output */
+	stwio  	r9, 4(r8)
+	
+	movia 	r5, ADDR_PS2		# PS/2 port address
+	
+	movia  	r8, ADDR_JP2PORT
  
 loop:
-	ldwio 	r3,(r8)   /* Read value from pins */
+	ldwio	r6, 0(r5)
+	andi	r7, r6, 0xFFFF0000
+	srli	r7, r7, 16
+	bne		r7, r0, readps2
+	br loop
 	
-	andi r3, r3, 0x0000000f
+readps2:
+	andi	r6, r6, 0xFF
+	br loop
 
+.section .exceptions, "ax"
+
+ISRHANDLER:
+	subi	sp, sp, 4
+	stw		ra, 0(sp)
+	rdctl	et, ctl4
+	andi	r15, et, IRQ_JP2PA
+	beq		r15, r0, EXITISR
+	call 	IRSENSORHANDLER
+	br 		EXITISR
+	
+IRSENSORHANDLER:
+	ldwio 	r3, 0(r8)   /* Read value from pins */
+	andi 	r3, r3, 0x0000000f
+	
 	cmpeqi r4, r3, 0x0
 	bne	   r4, r0, SEG0
 	cmpeqi r4, r3, 0x1
@@ -120,5 +159,13 @@ seg_done:
 	movia r2,ADDR_7SEG1
 	stwio r1,0(r2)        /* Write to 7-seg display */
 	movia r2,ADDR_7SEG2
-	stwio r0,0(r2):
-	br loop
+	stwio r0,0(r2)
+	
+	movia r10, ADDR_JP2PORT_EDGE
+	stwio r0, 0(r10) /* De-assert interrupt - write to edgecapture regs*/	
+	
+EXITISR:
+	ldw 	ra, 0(sp)
+	addi	sp, sp, 4
+	subi	ea, ea, 4
+	eret
