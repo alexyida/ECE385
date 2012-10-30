@@ -1,0 +1,5 @@
+*.elf
+*.ncf
+*.s.o
+*.srec
+project/nios_macros.s
