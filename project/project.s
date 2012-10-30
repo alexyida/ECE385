@@ -58,7 +58,7 @@ loop:
 	bne	   r4, r0, SEGa
 	cmpeqi r4, r3, 0xb
 	bne	   r4, r0, SEGb
-	cmpeqi r4, r3, 0xb
+	cmpeqi r4, r3, 0xc
 	bne	   r4, r0, SEGc
 	cmpeqi r4, r3, 0xd
 	bne	   r4, r0, SEGd
