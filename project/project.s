@@ -1,12 +1,15 @@
-.equ ADDR_JP2PORT, 		0x10000070
-.equ ADDR_JP2PORT_IE, 	0x10000078
-.equ ADDR_JP2PORT_EDGE, 0x1000007C
-.equ ADDR_JP2PORT_DIR, 	0x00000000
-.equ IRQ_JP2PA, 		0x00001000
+                                                                     
+                                                                     
+                                                                     
+                                             
+.equ ADDR_JP2PORT, 0x10000070
+.equ ADDR_JP2PORT_DIR, 0x00000000
 
-.equ ADDR_7SEG1, 		0x10000020
-.equ ADDR_7SEG2, 		0x10000030
-.equ ADDR_PS2,			0x10000100
+.equ ADDR_7SEG1, 0x10000020
+.equ ADDR_7SEG2, 0x10000030
+
+.equ ADDR_PS2, 0x10000100
+
 
 .equ NUMBER0, 0x3F
 .equ NUMBER1, 0x06
@@ -25,54 +28,39 @@
 .equ NUMBERE, 0x79
 .equ NUMBERF, 0x71
 
-.text
+.equ STARTKEY, 0xE0
+.equ UPKEY, 0x75
+.equ DOWNKEY, 0x72
+.equ FINISHKEY, 0xF0
+.equ IRQ_PS2, 0b10000000
 
+.text
 .global _start
 
 _start:
-	movia 	r8, ADDR_JP2PORT_IE
-	movia 	r9, 0xf
-	stwio	r9, 0(r8)
-	
-	movia	r8, IRQ_JP2PA
-	wrctl	ctl3, r8
-	
-	movia 	r8,1
-	wrctl 	ctl0,r8   /* Enable global Interrupts on Nios2 */
+	movia  r8, ADDR_JP2PORT
 
-	movia  	r9, 0x00000000        /* set direction to all output */
-	stwio  	r9, 4(r8)
+	movia  r9, 0x00000000        /* set direction to all output */
+	stwio  r9, 4(r8)
 	
 	movia 	r5, ADDR_PS2		# PS/2 port address
 	
-	movia  	r8, ADDR_JP2PORT
+	movia	r13, IRQ_PS2
+	wrctl	ctl3, r13
+	
+	movi 	r13,1
+	stwio	r13, 4(r5)
+	
+	wrctl 	ctl0,r13   /* Enable global Interrupts on Nios2 */
  
-loop:
-	ldwio	r6, 0(r5)
-	andi	r7, r6, 0xFFFF0000
-	srli	r7, r7, 16
-	bne		r7, r0, readps2
-	br loop
-	
-readps2:
-	andi	r6, r6, 0xFF
-	br loop
 
-.section .exceptions, "ax"
+	
+readpin:
+	ldwio	r13, 4(r5)
+	ldwio 	r3,(r8)   /* Read value from pins */
+	
+	andi r3, r3, 0x0000000f
 
-ISRHANDLER:
-	subi	sp, sp, 4
-	stw		ra, 0(sp)
-	rdctl	et, ctl4
-	andi	r15, et, IRQ_JP2PA
-	beq		r15, r0, EXITISR
-	call 	IRSENSORHANDLER
-	br 		EXITISR
-	
-IRSENSORHANDLER:
-	ldwio 	r3, 0(r8)   /* Read value from pins */
-	andi 	r3, r3, 0x0000000f
-	
 	cmpeqi r4, r3, 0x0
 	bne	   r4, r0, SEG0
 	cmpeqi r4, r3, 0x1
@@ -158,14 +146,87 @@ SEGf:
 seg_done:
 	movia r2,ADDR_7SEG1
 	stwio r1,0(r2)        /* Write to 7-seg display */
-	movia r2,ADDR_7SEG2
-	stwio r0,0(r2)
+	#movia r2,ADDR_7SEG2
+	#stwio r0,0(r2):
+	br readpin
+
+.section .exceptions, "ax"
+
+ISRHANDLER:
+	subi	sp, sp, 4
+	stw		ra, 0(sp)
+	rdctl	et, ctl4
+	andi	r15, et, IRQ_PS2
+	beq		r15, r0, EXITISR
+	call 	PS2HANDLER
+	br 		EXITISR
+
+PS2HANDLER:
+	ldwio	r6, 0(r5)
+	andi	r7, r6, 0xFFFF0000
+	srli	r7, r7, 16
+	beq		r7, r0, EXITISR 		
 	
-	movia r10, ADDR_JP2PORT_EDGE
-	stwio r0, 0(r10) /* De-assert interrupt - write to edgecapture regs*/	
+readps2:
+	andi	r6, r6, 0xFF
+	mov     r10, r11
+	mov     r11, r12
+	mov	    r12, r6
+	
+READKEY:
+
+    cmpeqi  r3, r10, STARTKEY
+	bne     r3, r0, MACTH1
+	br      EXITISR
+
+MACTH1:	
+    cmpeqi  r3, r11, UPKEY
+	beq     r3, r0, MATCH2
+	movia   r1,NUMBER1
+	movia   r2,ADDR_7SEG2
+	stwio   r1,0(r2)        /* Write to 7-seg display */
+	mov     r10, r0
+	mov     r11, r0
+    br      EXITISR	
+
+MATCH2:
+    cmpeqi  r3, r11, FINISHKEY
+	beq     r3, r0, MATCH3
+	cmpeqi  r3, r12, UPKEY
+	beq     r3, r0, MATCH4
+	movia   r1,NUMBER0
+	movia   r2,ADDR_7SEG2
+	stwio   r1,0(r2)        /* Write to 7-seg display */
+	mov     r10, r0
+	mov     r11, r0
+	mov     r12, r0
+    br      EXITISR
+	
+MATCH3:
+    cmpeqi  r3, r11, DOWNKEY
+	beq     r3, r0, EXITISR
+	movia   r1,NUMBER2
+	movia   r2,ADDR_7SEG2
+	stwio   r1,0(r2)        /* Write to 7-seg display */
+	mov     r10, r0
+	mov     r11, r0
+	br      EXITISR
+	
+MATCH4:
+    cmpeqi  r3, r12, DOWNKEY
+	beq     r3, r0, EXITISR
+	movia   r1,NUMBER0
+	movia   r2,ADDR_7SEG2
+	stwio   r1,0(r2)        /* Write to 7-seg display */
+    mov     r10, r0
+	mov     r11, r0
+	mov     r12, r0
+	br      EXITISR
 	
 EXITISR:
 	ldw 	ra, 0(sp)
 	addi	sp, sp, 4
 	subi	ea, ea, 4
 	eret
+
+	
