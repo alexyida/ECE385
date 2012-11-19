@@ -1,4 +1,3 @@
-
 .equ ADDR_JP2PORT, 0x10000070
 .equ ADDR_JP2PORT_DIR, 0x00000000
 .equ ADDR_JP2PORT_EDGE, 0x1000007C
@@ -9,6 +8,7 @@
 
 .equ ADDR_PS2, 0x10000100
 
+.equ ADDR_JP1, 0x10000060   /*Address GPIO JP1*/
 
 .equ NUMBER0, 0x3F
 .equ NUMBER1, 0x06
@@ -40,7 +40,7 @@
 
 _start:
 	movia 	r8, ADDR_JP2PORT_IE
-	movia 	r9, 0x0000000f
+	movia 	r9, 0x00000010
 	stwio	r9, 0(r8)
 	
 	movia 	r5, ADDR_PS2		# PS/2 port address
@@ -54,8 +54,15 @@ _start:
 	
 	wrctl 	ctl0,r13   /* Enable global Interrupts on Nios2 */
 	
-	movia  	r9, 0xfffffff0        /* set direction */
+	movia  	r9, 0xffffffe0        /* set direction */
 	stwio 	r9, 4(r8)
+	
+    movia	r16, ADDR_JP1         /* load address GPIO JP1 into r16*/
+    movia	r9, 0x07f557ff       /* set motor,threshold and sensors bits to output, set state and sensor valid bits to inputs */
+    stwio	r9, 4(r16)
+
+	movia	r9, 0b11111111111111111111111111111111         /* all motors disabled (bit0=1) */
+	stwio	r9, 0(r16)
  
 loop:
 	br loop
@@ -88,6 +95,9 @@ readps2:
 	mov     r10, r11
 	mov     r11, r12
 	mov	    r12, r6
+
+
+	
 	
 READKEY:
 
@@ -101,6 +111,9 @@ MACTH1:
 	movia   r1,NUMBER1
 	movia   r2,ADDR_7SEG2
 	stwio   r1,0(r2)        /* Write to 7-seg display */
+	movia   r2, ADDR_JP1
+	movia	r1, 0b11111111111111111111111111111110        /* motor0 enabled (bit0=0), direction set to forward (bit1=0) */
+	stwio	r1, 0(r2)      /* Write to JP1 to start the car */
 	mov     r10, r0
 	mov     r11, r0
     br		ps2return
@@ -116,6 +129,9 @@ MATCH2:
 	mov     r10, r0
 	mov     r11, r0
 	mov     r12, r0
+	movia   r2, ADDR_JP1
+	movia	r1, 0b11111111111111111111111111111111         /* all motors disabled (bit0=1) */
+	stwio	r1, 0(r2)
     br		ps2return
 	
 MATCH3:
@@ -126,6 +142,9 @@ MATCH3:
 	stwio   r1,0(r2)        /* Write to 7-seg display */
 	mov     r10, r0
 	mov     r11, r0
+	movia   r2, ADDR_JP1
+	movia	r1, 0b11111111111111111111111111111100        /* motor0 enabled (bit0=0), direction set to forward (bit1=0) */
+	stwio	r1, 0(r2)      /* Write to JP1 to start the car */
 	br		ps2return
 	
 MATCH4:
@@ -137,10 +156,15 @@ MATCH4:
     mov     r10, r0
 	mov     r11, r0
 	mov     r12, r0
+	movia   r2, ADDR_JP1
+	movia	r1, 0b11111111111111111111111111111111         /* all motors disabled (bit0=1) */
+	stwio	r1, 0(r2)
 	br		ps2return
 	
 ps2return:
 	ret
+
+
 	
 IRSENSORHANDLER:
 	ldwio 	r3, 0(r8)   /* Read value from pins */
@@ -230,10 +254,10 @@ SEGf:
 
 seg_done:
 	movia r2,ADDR_7SEG1
-	stwio r1,0(r2)        /* Write to 7-seg display */
+	stwio r1, 0(r2)        /* Write to 7-seg display */
 
-	#movia r10, ADDR_JP2PORT_EDGE
-	#stwio r0, 0(r10) /* De-assert interrupt - write to edgecapture regs*/
+	movia r10, ADDR_JP2PORT_EDGE
+	stwio r0, 0(r10) /* De-assert interrupt - write to edgecapture regs*/
 	ret
 	
 EXITISR:
