@@ -1,14 +1,18 @@
-.equ ADDR_JP2PORT, 0x10000070
-.equ ADDR_JP2PORT_DIR, 0x00000000
+.equ ADDR_JP2PORT, 		0x10000070
+.equ ADDR_JP2PORT_DIR, 	0x00000000
 .equ ADDR_JP2PORT_EDGE, 0x1000007C
 .equ ADDR_JP2PORT_IE, 	0x10000078
 
-.equ ADDR_7SEG1, 0x10000020
-.equ ADDR_7SEG2, 0x10000030
+.equ ADDR_7SEG1, 		0x10000020
+.equ ADDR_7SEG2, 		0x10000030
 
-.equ ADDR_PS2, 0x10000100
+.equ ADDR_PS2, 			0x10000100
 
-.equ ADDR_JP1, 0x10000060   /*Address GPIO JP1*/
+.equ ADDR_JP1, 			0x10000060   /*Address GPIO JP1*/
+
+.equ ADDR_TIMER, 		0x10002000
+.equ STOP_PERIOD,		300000
+.equ START_PERIOD,		150000
 
 .equ NUMBER0, 0x3F
 .equ NUMBER1, 0x06
@@ -32,8 +36,9 @@
 .equ DOWNKEY, 0x72
 .equ FINISHKEY, 0xF0
 
-.equ IRQ_PS2, 0b10000000
-.equ IRQ_JP2, 0x00001000
+.equ IRQ_PS2, 	0b10000000
+.equ IRQ_JP2, 	0x00001000
+.equ IRQ_TIMER, 0x1
 
 .text
 .global _start
@@ -46,7 +51,7 @@ _start:
 	movia 	r5, ADDR_PS2		# PS/2 port address
 	movia  	r8, ADDR_JP2PORT
 	
-	movia	r13, 0b1000010000000
+	movia	r13, 0b1000010000001
 	wrctl	ctl3, r13
 	
 	movi 	r13,1
@@ -63,13 +68,15 @@ _start:
 
 	movia	r9, 0b11111111111111111111111111111111         /* all motors disabled (bit0=1) */
 	stwio	r9, 0(r16)
+	
+	mov		r20, r0		# stop state
  
 loop:
 	br loop
 
 .section .exceptions, "ax"
 
-ISRHANDLER:
+ISRHANDLER1:
 	subi	sp, sp, 4
 	stw		ra, 0(sp)
 	rdctl	et, ctl4
@@ -79,9 +86,15 @@ ISRHANDLER:
 	br 		EXITISR
 	
 ISRHANDLER2:
-	andi	et, et, IRQ_JP2
-	beq		et, r0, EXITISR
+	andi	r15, et, IRQ_JP2
+	beq		r15, r0, ISRHANDLER3
 	call	IRSENSORHANDLER
+	br		EXITISR
+	
+ISRHANDLER3:
+	andi	r15, et, IRQ_TIMER
+	beq		r15, r0, EXITISR
+	call	TIMERHANDLER
 	br		EXITISR
 
 PS2HANDLER:
@@ -111,13 +124,25 @@ MACTH1:
 	movia   r1,NUMBER1
 	movia   r2,ADDR_7SEG2
 	stwio   r1,0(r2)        /* Write to 7-seg display */
-	movia   r2, ADDR_JP1
-	movia	r1, 0b11111111111111111111111111111110        /* motor0 enabled (bit0=0), direction set to forward (bit1=0) */
-	stwio	r1, 0(r2)      /* Write to JP1 to start the car */
-	mov     r10, r0
-	mov     r11, r0
-    br		ps2return
 
+	bne		r20, r0, finishmatch
+	
+	/* set up the timer */
+	movia	r17, ADDR_TIMER
+	movui	r18, %lo(STOP_PERIOD)
+	stwio	r18, 8(r17)
+	movui	r18, %hi(STOP_PERIOD)
+	stwio	r18, 12(r17)
+	
+	movui 	r18, 5				# 0b101: start, not continue, interrupt enabled
+	stwio 	r18, 4(r17) 		# Start the timer
+	
+	mov		r19, r0			# stop state
+	movi	r20, 1			# motion on
+	movia	r21, 0b11111111111111111111111111111110		# motion direction
+	
+	br 		finishmatch
+	
 MATCH2:
     cmpeqi  r3, r11, FINISHKEY
 	beq     r3, r0, MATCH3
@@ -129,9 +154,9 @@ MATCH2:
 	mov     r10, r0
 	mov     r11, r0
 	mov     r12, r0
-	movia   r2, ADDR_JP1
-	movia	r1, 0b11111111111111111111111111111111         /* all motors disabled (bit0=1) */
-	stwio	r1, 0(r2)
+
+	mov		r20, r0
+	
     br		ps2return
 	
 MATCH3:
@@ -140,12 +165,24 @@ MATCH3:
 	movia   r1,NUMBER2
 	movia   r2,ADDR_7SEG2
 	stwio   r1,0(r2)        /* Write to 7-seg display */
-	mov     r10, r0
-	mov     r11, r0
-	movia   r2, ADDR_JP1
-	movia	r1, 0b11111111111111111111111111111100        /* motor0 enabled (bit0=0), direction set to forward (bit1=0) */
-	stwio	r1, 0(r2)      /* Write to JP1 to start the car */
-	br		ps2return
+	
+	bne		r20, r0, finishmatch
+	
+	/* set up the timer */
+	movia	r17, ADDR_TIMER
+	movui	r18, %lo(STOP_PERIOD)
+	stwio	r18, 8(r17)
+	movui	r18, %hi(STOP_PERIOD)
+	stwio	r18, 12(r17)
+	
+	movui 	r18, 5			# 0b101: start, not continue, interrupt enabled
+	stwio 	r18, 4(r17) 		# Start the timer
+	
+	mov		r19, r0			# stop state
+	movi	r20, 1			# motion on
+	movia	r21, 0b11111111111111111111111111111100		# motion direction
+
+	br		finishmatch
 	
 MATCH4:
     cmpeqi  r3, r12, DOWNKEY
@@ -156,15 +193,18 @@ MATCH4:
     mov     r10, r0
 	mov     r11, r0
 	mov     r12, r0
-	movia   r2, ADDR_JP1
-	movia	r1, 0b11111111111111111111111111111111         /* all motors disabled (bit0=1) */
-	stwio	r1, 0(r2)
+	
+	mov		r20, r0
+	
 	br		ps2return
 	
+finishmatch:
+	mov     r10, r0
+	mov     r11, r0
 ps2return:
 	ret
-
-
+	
+	
 	
 IRSENSORHANDLER:
 	ldwio 	r3, 0(r8)   /* Read value from pins */
@@ -258,6 +298,53 @@ seg_done:
 
 	movia r10, ADDR_JP2PORT_EDGE
 	stwio r0, 0(r10) /* De-assert interrupt - write to edgecapture regs*/
+	ret
+	
+TIMERHANDLER:
+	beq		r20, r0, motionoff
+
+	beq		r19, r0, motorstart
+	
+	stwio 	r0, 0(r17)	# reset timer
+
+	movui	r18, %lo(STOP_PERIOD)
+	stwio	r18, 8(r17)
+	movui	r18, %hi(STOP_PERIOD)
+	stwio	r18, 12(r17)
+	
+	movui 	r18, 5			# 0b101: start, not continue, interrupt enabled
+	stwio 	r18, 4(r17) 		# Start the timer
+	
+	mov		r19, r0			# stop state
+	
+	movia	r23, 0b11111111111111111111111111111111        /* disable motor */
+	stwio	r23, 0(r16)      /* Write to JP1 */
+	
+	ret
+	
+motorstart:
+	stwio 	r0, 0(r17)	# reset timer
+
+	movui	r18, %lo(START_PERIOD)
+	stwio	r18, 8(r17)
+	movui	r18, %hi(START_PERIOD)
+	stwio	r18, 12(r17)
+	
+	movui 	r18, 5			# 0b101: start, not continue, interrupt enabled
+	stwio 	r18, 4(r17) 		# Start the timer
+	
+	movi	r19, 1			# start state
+	
+	stwio	r21, 0(r16)      /* Write to JP1 to start the car */	
+	
+	ret
+	
+motionoff:
+	stwio 	r0, 0(r17)	# reset timer
+	
+	movia	r23, 0b11111111111111111111111111111111       /* disable motor */
+	stwio	r23, 0(r16)      /* Write to JP1 to start the car */
+	
 	ret
 	
 EXITISR:
