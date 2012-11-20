@@ -70,6 +70,7 @@ _start:
 	stwio	r9, 0(r16)
 	
 	mov		r20, r0		# stop state
+	mov		r22, r0
  
 loop:
 	br loop
@@ -204,12 +205,19 @@ finishmatch:
 ps2return:
 	ret
 	
-	
-	
 IRSENSORHANDLER:
 	ldwio 	r3, 0(r8)   /* Read value from pins */
 	andi 	r3, r3, 0x0000000f
 
+	movi	r4, 8
+	bge		r3, r4, danger
+	mov		r22, r0
+	br		safe
+	
+danger:
+	movi	r22, 1
+
+safe:
 	cmpeqi r4, r3, 0x0
 	bne	   r4, r0, SEG0
 	cmpeqi r4, r3, 0x1
@@ -301,10 +309,12 @@ seg_done:
 	ret
 	
 TIMERHANDLER:
+	bne		r22, r0, motorstop
 	beq		r20, r0, motionoff
 
 	beq		r19, r0, motorstart
 	
+motorstop:
 	stwio 	r0, 0(r17)	# reset timer
 
 	movui	r18, %lo(STOP_PERIOD)
