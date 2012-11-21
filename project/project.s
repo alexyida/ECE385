@@ -41,9 +41,9 @@
 .equ IRQ_TIMER, 0x1
 
 .text
-.global _start
+.global start
 
-_start:
+start:
 	movia 	r8, ADDR_JP2PORT_IE
 	movia 	r9, 0x00000010
 	stwio	r9, 0(r8)
@@ -208,14 +208,120 @@ ps2return:
 IRSENSORHANDLER:
 	ldwio 	r3, 0(r8)   /* Read value from pins */
 	andi 	r3, r3, 0x0000000f
-
-	movi	r4, 8
+	
+	movi	r4, 5
 	bge		r3, r4, danger
 	mov		r22, r0
+	
+	addi sp, sp, -96
+	stw		ra, 0(sp)
+	stw		r23, 4(sp)
+	stw		r22, 8(sp)
+	stw		r21, 12(sp)
+	stw		r20, 16(sp)
+	stw		r19, 20(sp)
+	stw		r18, 24(sp)
+	stw		r17, 28(sp)
+	stw		r16, 32(sp)
+	stw		r15, 36(sp)
+	stw		r14, 40(sp)
+	stw		r13, 44(sp)
+	stw		r12, 48(sp)
+	stw		r11, 52(sp)
+	stw		r10, 56(sp)
+	stw		r9, 60(sp)
+	stw		r8, 64(sp)
+	stw		r7, 68(sp)
+	stw		r6, 72(sp)
+	stw		r5, 76(sp)
+	stw		r4, 80(sp)
+	stw		r3, 84(sp)
+	stw		r2, 88(sp)
+	stw		r1, 92(sp)
+	
+	call    vga_safe
+	
+	ldw		ra, 0(sp)
+	ldw		r23, 4(sp)
+	ldw		r22, 8(sp)
+	ldw		r21, 12(sp)
+	ldw		r20, 16(sp)
+	ldw		r19, 20(sp)
+	ldw		r18, 24(sp)
+	ldw		r17, 28(sp)
+	ldw		r16, 32(sp)
+	ldw		r15, 36(sp)
+	ldw		r14, 40(sp)
+	ldw		r13, 44(sp)
+	ldw		r12, 48(sp)
+	ldw		r11, 52(sp)
+	ldw		r10, 56(sp)
+	ldw		r9, 60(sp)
+	ldw		r8, 64(sp)
+	ldw		r7, 68(sp)
+	ldw		r6, 72(sp)
+	ldw		r5, 76(sp)
+	ldw		r4, 80(sp)
+	ldw		r3, 84(sp)
+	ldw		r2, 88(sp)
+	ldw		r1, 92(sp)
+	addi sp, sp, 96
 	br		safe
 	
 danger:
 	movi	r22, 1
+	addi sp, sp, -96
+	stw		ra, 0(sp)
+	stw		r23, 4(sp)
+	stw		r22, 8(sp)
+	stw		r21, 12(sp)
+	stw		r20, 16(sp)
+	stw		r19, 20(sp)
+	stw		r18, 24(sp)
+	stw		r17, 28(sp)
+	stw		r16, 32(sp)
+	stw		r15, 36(sp)
+	stw		r14, 40(sp)
+	stw		r13, 44(sp)
+	stw		r12, 48(sp)
+	stw		r11, 52(sp)
+	stw		r10, 56(sp)
+	stw		r9, 60(sp)
+	stw		r8, 64(sp)
+	stw		r7, 68(sp)
+	stw		r6, 72(sp)
+	stw		r5, 76(sp)
+	stw		r4, 80(sp)
+	stw		r3, 84(sp)
+	stw		r2, 88(sp)
+	stw		r1, 92(sp)
+	call 	vga_danger
+
+	ldw		ra, 0(sp)
+	ldw		r23, 4(sp)
+	ldw		r22, 8(sp)
+	ldw		r21, 12(sp)
+	ldw		r20, 16(sp)
+	ldw		r19, 20(sp)
+	ldw		r18, 24(sp)
+	ldw		r17, 28(sp)
+	ldw		r16, 32(sp)
+	ldw		r15, 36(sp)
+	ldw		r14, 40(sp)
+	ldw		r13, 44(sp)
+	ldw		r12, 48(sp)
+	ldw		r11, 52(sp)
+	ldw		r10, 56(sp)
+	ldw		r9, 60(sp)
+	ldw		r8, 64(sp)
+	ldw		r7, 68(sp)
+	ldw		r6, 72(sp)
+	ldw		r5, 76(sp)
+	ldw		r4, 80(sp)
+	ldw		r3, 84(sp)
+	ldw		r2, 88(sp)
+	ldw		r1, 92(sp)
+	addi sp, sp, 96
 
 safe:
 	cmpeqi r4, r3, 0x0
