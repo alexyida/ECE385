@@ -14,6 +14,8 @@
 .equ STOP_PERIOD,		300000
 .equ START_PERIOD,		150000
 
+.equ ADDR_SLIDESWITCHES, 0x10000040
+
 .equ NUMBER0, 0x3F
 .equ NUMBER1, 0x06
 .equ NUMBER2, 0x5B
@@ -417,8 +419,13 @@ seg_done:
 TIMERHANDLER:
 	addi	sp, sp, -4
 	stw		r1, 0(sp)
-	movi	r1, 0b11111111111111111111111111111100
+	movia	r1, 0b11111111111111111111111111111100
 	beq		r1, r21, ignoredanger
+
+	movia	r1, ADDR_SLIDESWITCHES
+	ldwio 	r1, 0(r1)                /* Read switches */
+	andi	r1, r1, 1
+	beq		r1, r0, ignoredanger
 	
 	bne		r22, r0, motorstop
 	
