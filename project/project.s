@@ -415,7 +415,14 @@ seg_done:
 	ret
 	
 TIMERHANDLER:
+	addi	sp, sp, -4
+	stw		r1, 0(sp)
+	movi	r1, 0b11111111111111111111111111111100
+	beq		r1, r21, ignoredanger
+	
 	bne		r22, r0, motorstop
+	
+ignoredanger:	
 	beq		r20, r0, motionoff
 
 	beq		r19, r0, motorstart
@@ -436,7 +443,7 @@ motorstop:
 	movia	r23, 0b11111111111111111111111111111111        /* disable motor */
 	stwio	r23, 0(r16)      /* Write to JP1 */
 	
-	ret
+	br		timerret
 	
 motorstart:
 	stwio 	r0, 0(r17)	# reset timer
@@ -453,7 +460,7 @@ motorstart:
 	
 	stwio	r21, 0(r16)      /* Write to JP1 to start the car */	
 	
-	ret
+	br		timerret
 	
 motionoff:
 	stwio 	r0, 0(r17)	# reset timer
@@ -461,6 +468,11 @@ motionoff:
 	movia	r23, 0b11111111111111111111111111111111       /* disable motor */
 	stwio	r23, 0(r16)      /* Write to JP1 to start the car */
 	
+	br		timerret
+	
+timerret:
+	ldw		r1, 0(sp)
+	addi	sp, sp, 4
 	ret
 	
 EXITISR:
